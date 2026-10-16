@@ -1,0 +1,54 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Superstore Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1d2733;--mu:#6b7785;--bd:#e3e7ec;--g:#2a9d8f;--r:#e76f51;--b:#264653;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--card:#1b232c;--tx:#e8edf2;--mu:#9aa6b2;--bd:#2c3742;--b:#8ecae6;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;padding:16px;max-width:1200px;margin:auto}
+h1{font-size:22px;margin:0}p.s{color:var(--mu);margin:4px 0 14px}
+.f{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.f select{padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--card);color:var(--tx)}
+.k{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}.k .c b{display:block;font-size:24px}.k .c span{color:var(--mu);font-size:13px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}.c h3{margin:0 0 2px;font-size:15px}.c p{margin:0 0 8px;color:var(--mu);font-size:12.5px}
+.c canvas{max-height:280px}.ins{border-left:4px solid var(--r);margin-top:14px;line-height:1.5}
+</style></head><body>
+<h1>USA Superstore: Where Do We Make (and Lose) Money?</h1>
+<p class="s">2014–2017 · Use the filters; every chart updates. Green = profit, red = loss.</p>
+<div class="f"><select id="fy"></select><select id="fr"></select><select id="fc"></select></div>
+<div class="k"><div class="c"><b id="k1"></b><span>Sales</span></div><div class="c"><b id="k2"></b><span>Profit</span></div><div class="c"><b id="k3"></b><span>Profit margin</span></div><div class="c"><b id="k4"></b><span>Avg discount</span></div></div>
+<div class="g">
+<div class="c"><h3>1. Is the business growing?</h3><p>Sales and profit by month</p><canvas id="a"></canvas></div>
+<div class="c"><h3>2. Which products lose money?</h3><p>Profit by sub-category</p><canvas id="b"></canvas></div>
+<div class="c"><h3>3. Why? Discounts</h3><p>Profit by discount level</p><canvas id="d"></canvas></div>
+<div class="c"><h3>4. Where? Regions</h3><p>Profit by region</p><canvas id="e"></canvas></div>
+<div class="c"><h3>5. Best &amp; worst states</h3><p>Top 5 and bottom 5 by profit</p><canvas id="f"></canvas></div>
+</div>
+<div class="c ins"><b>The story in one line:</b> sales keep rising, but discounts above 20% turn healthy sales into losses, especially for Furniture and in the Central region.</div>
+<script>
+const D=__DATA__,R=D.rows,$=id=>document.getElementById(id),G="#2a9d8f",RD="#e76f51";
+const fill=(id,l,a)=>{$(id).innerHTML='<option value="-1">'+a+'</option>'+l.map((x,i)=>`<option value="${i}">${x}</option>`).join('')};
+fill('fy',[2014,2015,2016,2017],'All years');fill('fr',D.Region,'All regions');fill('fc',D.Category,'All categories');
+const $$=n=>'$'+Math.round(n).toLocaleString(),ch={};
+function mk(id,cfg){if(ch[id])ch[id].destroy();cfg.options={responsive:true,plugins:{legend:{display:cfg.data.datasets.length>1}},...cfg.options};ch[id]=new Chart($(id),cfg)}
+const col=a=>a.map(v=>v>=0?G:RD);
+function sum(f,key){const m={};f.forEach(r=>{const k=key(r);m[k]=(m[k]||0)+r[8]});return m}
+function up(){
+ const y=+$('fy').value,rg=+$('fr').value,ct=+$('fc').value;
+ const f=R.filter(r=>(y<0||r[0]==2014+y)&&(rg<0||r[2]==rg)&&(ct<0||r[3]==ct));
+ const S=f.reduce((a,r)=>a+r[7],0),P=f.reduce((a,r)=>a+r[8],0);
+ $('k1').textContent=$$(S);$('k2').textContent=$$(P);$('k3').textContent=(S?P/S*100:0).toFixed(1)+'%';
+ $('k4').textContent=(f.length?f.reduce((a,r)=>a+r[6],0)/f.length*100:0).toFixed(0)+'%';
+ const ms={},mp={};f.forEach(r=>{const k=r[0]+'-'+String(r[1]).padStart(2,'0');ms[k]=(ms[k]||0)+r[7];mp[k]=(mp[k]||0)+r[8]});
+ const mk_=Object.keys(ms).sort();
+ mk('a',{type:'line',data:{labels:mk_,datasets:[{label:'Sales',data:mk_.map(k=>ms[k]),borderColor:'#457b9d',tension:.3,pointRadius:0},{label:'Profit',data:mk_.map(k=>mp[k]),borderColor:G,tension:.3,pointRadius:0}]}});
+ const sc=sum(f,r=>r[4]),sk=Object.keys(sc).sort((a,b)=>sc[a]-sc[b]),sv=sk.map(k=>sc[k]);
+ mk('b',{type:'bar',data:{labels:sk.map(k=>D['Sub-Category'][k]),datasets:[{data:sv,backgroundColor:col(sv)}]},options:{indexAxis:'y'}});
+ const band=r=>r[6]==0?0:r[6]<=.2?1:r[6]<=.3?2:r[6]<=.5?3:4,bl=['0%','1–20%','21–30%','31–50%','>50%'],bm=sum(f,band),bv=bl.map((_,i)=>bm[i]||0);
+ mk('d',{type:'bar',data:{labels:bl,datasets:[{data:bv,backgroundColor:col(bv)}]}});
+ const rm=sum(f,r=>r[2]),rv=D.Region.map((_,i)=>rm[i]||0);
+ mk('e',{type:'bar',data:{labels:D.Region,datasets:[{data:rv,backgroundColor:col(rv)}]}});
+ const st=sum(f,r=>r[5]),sa=Object.keys(st).sort((a,b)=>st[a]-st[b]),pick=sa.length>10?[...sa.slice(0,5),...sa.slice(-5)]:sa,pv=pick.map(k=>st[k]);
+ mk('f',{type:'bar',data:{labels:pick.map(k=>D.State[k]),datasets:[{data:pv,backgroundColor:col(pv)}]},options:{indexAxis:'y'}});
+}
+['fy','fr','fc'].forEach(i=>$(i).onchange=up);up();
+</script></body></html>
